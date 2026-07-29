@@ -1,0 +1,73 @@
+# ============================================================
+# SL Blog 登录接口自动化测试用例
+# 接口: POST /api/login
+# 请求体: { "username": "string", "password": "string" }
+# 成功响应: { "code": 200, "message": "登录成功", "data": { "token": "xxx", "userInfo": {...} } }
+# 失败响应: { "code": 500, "message": "用户名或密码错误", "data": null }
+# ============================================================
+
+blog_login:
+  # 接口的基本信息
+  - request_info:
+      case_title: 登录接口
+      url: /api/login
+      method: POST
+      headers:
+        Content-Type: application/json
+    case_info:
+      # 用例1: 正常登录 - 验证登录成功并提取 token
+      - case_desc: 正常登录
+        json:
+          username: admin
+          password: admin123456
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 登录成功 ]
+          # - eq: [ $.data.token, ${token} ]
+        extract:
+          token: $.data.token          # 提取 token 供后续接口使用
+
+      # 用例2: 密码错误 - 验证返回错误提示
+      - case_desc: 密码错误
+        json:
+          username: admin
+          password: wrongpassword
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 用户名或密码错误 ]
+
+      # 用例3: 用户名不存在 - 验证返回错误提示
+      - case_desc: 用户名不存在
+        json:
+          username: nouser123456
+          password: admin123
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 用户名或密码错误 ]
+
+      # 用例4: 密码为空 - 验证后端返回错误
+      - case_desc: 密码为空
+        json:
+          username: admin
+          password: ""
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 用户名或密码错误 ]
+
+      # 用例5: 用户名为空 - 验证后端返回错误
+      - case_desc: 用户名为空
+        json:
+          username: ""
+          password: admin123
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 用户名或密码错误 ]
+
+      # 用例6: 用户名和密码均为空
+      - case_desc: 均为空
+        json:
+          username: ""
+          password: ""
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 用户名或密码错误 ]

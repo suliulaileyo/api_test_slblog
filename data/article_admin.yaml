@@ -1,0 +1,310 @@
+# ============================================================
+# SL Blog 文章模块 - 后台接口自动化测试用例
+# ============================================================
+# 后台接口（部分需要 ADMIN 认证）：
+#   1. GET  /api/admin/articles/list           - 后台文章列表（公开，支持筛选）
+#   2. GET  /api/admin/articles/detail/{id}     - 后台文章详情（公开）
+#   3. POST /api/admin/articles/save            - 新建/更新文章（需要 ADMIN）
+#     - categoryId 为 null 时后端自动分配"未分类"分类
+#   4. GET  /api/admin/articles/drafts          - 获取草稿列表（需要 ADMIN）
+#   5. DELETE /api/admin/articles/move-to-trash/batch - 批量移至回收站（需要 ADMIN）
+#   6. POST /api/admin/articles/delete           - 永久删除文章（需要 ADMIN）
+#   7. GET  /api/admin/articles/export           - 导出文章（需要 ADMIN）
+#   8. GET  /api/admin/articles/export/batch     - 批量导出文章（需要 ADMIN）
+#
+# 执行顺序（test_article_admin.py）：
+#   列表(2) → 详情(3) → 新建(4, 提取 new_article_id) → 编辑(5) → 草稿(6)
+#   → 移至回收站(7) → 永久删除(8) → 导出(9) → 批量导出(10)
+# ============================================================
+
+article_admin_list:
+  # 后台文章列表接口（公开，无需认证）
+  - request_info:
+      case_title: 后台文章列表查询
+      url: /api/admin/articles/list
+      method: GET
+      headers:
+        Content-Type: application/json
+    case_info:
+      # 用例1: 默认分页获取所有文章
+      - case_desc: 默认分页
+        params:
+          page: 1
+          pageSize: 10
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取后台文章列表成功 ]
+          - gte: [ $.data.totalItems, 0 ]
+        extract:
+          article_id: $.data.articles[0].id     # 提取第一篇文章ID供后续使用
+          article_title: $.data.articles[0].title # 提取第一篇文章标题供后续使用
+          article_content: $.data.articles[0].content # 提取第一篇文章内容供后续使用
+          article_category_id: $.data.articles[0].categoryId # 提取第一篇文章所属分类ID（用于分类删除校验）
+
+      # 用例2: 查询已发布文章
+      - case_desc: 查询已发布
+        params:
+          page: 1
+          pageSize: 10
+          status: 1
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取后台文章列表成功 ]
+
+      # 用例3: 查询草稿文章
+      - case_desc: 查询草稿
+        params:
+          page: 1
+          pageSize: 10
+          status: 0
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取后台文章列表成功 ]
+
+      # 用例4: 按标题模糊搜索文章
+      - case_desc: 按标题搜索
+        params:
+          page: 1
+          pageSize: 10
+          title: Spring
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取后台文章列表成功 ]
+
+article_admin_detail:
+  # 后台文章详情（公开，使用动态文章ID）
+  - request_info:
+      case_title: 后台文章详情查询
+      url: /api/admin/articles/detail/${get_extract_value(article_id)}
+      method: GET
+      headers:
+        Content-Type: application/json
+    case_info:
+      # 用例1: 获取文章详情
+      - case_desc: 获取详情
+        params: {}
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取文章详情成功 ]
+          - eq: [ $.data.id, '${get_extract_value(article_id)}' ]
+          - contains: [ $.data.title, '${get_extract_value(article_title)}']
+          - contains: [ $.data.content, '${get_extract_value(article_content)}' ]
+        extract:
+          article_category_id: $.data.categoryId        # 提取分类ID供创建文章使用
+
+article_admin_save:
+  # 新建文章接口（需要 ADMIN 认证）
+  # Authorization 使用 Bearer 格式（后端 JwtAuthenticationFilter 解析 Bearer token）
+  - request_info:
+      case_title: 新建文章接口
+      url: /api/admin/articles/save
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 新建草稿文章（id 为 null 表示新建）
+      - case_desc: 新建草稿
+        json:
+          id: null
+          title: API测试草稿文章{{$timetime}}
+          content: "# API测试草稿内容\n这是一篇通过接口自动化测试创建的草稿文章。"
+          summary: API测试草稿文章摘要
+          coverImage: ""
+          categoryId: 1
+          tagIds: []
+          isPublish: false
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 保存文章成功 ]
+          - contains: [ $.data.title, 'API测试草稿文章{{$timetime}}' ]
+        extract:
+          new_article_id: $.data.id                     # 提取新建文章ID供后续编辑/删除使用
+
+      # 用例2: 新建文章 - 标题为空（验证后端校验）
+      - case_desc: 标题为空
+        json:
+          id: null
+          title: ""
+          content: "内容不为空"
+          summary: ""
+          coverImage: ""
+          categoryId: 1
+          tagIds: []
+          isPublish: false
+        validate:
+          - ne: [ $.status, 200 ]
+
+      # 用例3: 新建文章 - 内容为空（验证后端校验）
+      - case_desc: 内容为空
+        json:
+          id: null
+          title: "标题不为空"
+          content: ""
+          summary: ""
+          coverImage: ""
+          categoryId: 1
+          tagIds: []
+          isPublish: false
+        validate:
+          - ne: [ $.status, 200 ]
+
+      # 用例4: 新建文章 - categoryId为空（后端兜底逻辑：自动分配"未分类"）
+      - case_desc: categoryId为空
+        json:
+          id: null
+          title: API测试无分类文章{{$timetime}}
+          content: "这是一篇不指定分类的文章，后端应自动分配默认分类"
+          summary: 无分类文章摘要
+          coverImage: ""
+          categoryId: null
+          tagIds: []
+          isPublish: false
+        validate:
+          - ne: [ $.status, 200 ]
+        extract:
+          no_category_article_id: $.data.id
+
+article_admin_update:
+  # 编辑/更新文章接口（需要 ADMIN 认证）
+  # 编辑之前新建的文章 new_article_id（POST /save 同时承担新建与更新，靠 body 中的 id 区分）
+  - request_info:
+      case_title: 编辑文章接口
+      url: /api/admin/articles/save
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 编辑已有文章（修改标题与内容，并发布）
+      - case_desc: 编辑并发布
+        json:
+          id: ${get_extract_value(new_article_id)}
+          title: API测试编辑后文章{{$timetime}}
+          content: "# API测试编辑后内容\n这是一篇通过接口自动化测试编辑更新的文章。"
+          summary: API测试编辑后摘要
+          coverImage: ""
+          categoryId: 1
+          tagIds: []
+          isPublish: true
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 保存文章成功 ]
+          - contains: [ $.data.title, 'API测试编辑后文章{{$timetime}}' ]
+
+      # 用例2: 编辑文章 - 标题为空（验证后端校验）
+      - case_desc: 标题为空
+        json:
+          id: ${get_extract_value(new_article_id)}
+          title: ""
+          content: "内容不为空"
+          summary: ""
+          coverImage: ""
+          categoryId: 1
+          tagIds: []
+          isPublish: false
+        validate:
+          - ne: [ $.status, 200 ]
+
+article_admin_drafts:
+  # 获取草稿列表接口（需要 ADMIN 认证）
+  - request_info:
+      case_title: 获取草稿文章列表
+      url: /api/admin/articles/drafts
+      method: GET
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 默认分页获取草稿列表
+      - case_desc: 默认分页
+        params:
+          page: 1
+          pageSize: 10
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取草稿列表成功 ]
+          - gte: [ $.data.totalItems, 0 ]
+
+      # 用例2: 自定义分页获取草稿列表
+      - case_desc: 自定义分页
+        params:
+          page: 1
+          pageSize: 5
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取草稿列表成功 ]
+
+article_admin_move_to_trash:
+  # 批量移至回收站接口（需要 ADMIN 认证）
+  # 注意: 这里使用之前创建的测试文章ID
+  - request_info:
+      case_title: 批量移至回收站
+      url: /api/admin/articles/move-to-trash/batch
+      method: DELETE
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 将单篇文章移至回收站
+      - case_desc: 移至回收站
+        json:
+          - ${get_extract_value(new_article_id)}
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 批量移至回收站成功 ]
+
+article_admin_delete:
+  # 永久删除文章接口（需要 ADMIN 认证）
+  # 完整删除流程：先移至回收站（article_admin_move_to_trash 完成），再永久删除
+  - request_info:
+      case_title: 永久删除文章接口
+      url: /api/admin/articles/delete
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 永久删除之前移入回收站的文章
+      - case_desc: 永久删除
+        params:
+          id: ${get_extract_value(new_article_id)}
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 永久删除文章成功 ]
+
+# article_admin_export:
+#   # 导出单篇文章（需要 ADMIN 认证）
+#   - request_info:
+#       case_title: 导出文章
+#       url: /api/admin/articles/export
+#       method: GET
+#       headers:
+#         Authorization: Bearer ${get_extract_value(token)}
+#     case_info:
+#       # 用例1: 导出文章为 Markdown 格式
+#       - case_desc: 导出Markdown
+#         params:
+#           id: ${get_extract_value(article_id)}
+#           format: md
+#         validate:
+#           - contains: [ $headers.Content-Type , text/markdown;charset=utf-8 ]
+#           - gt: [ $body.length, 0]
+
+# article_admin_export_batch:
+#   # 批量导出文章（需要 ADMIN 认证）
+#   - request_info:
+#       case_title: 批量导出文章
+#       url: /api/admin/articles/export/batch
+#       method: GET
+#       headers:
+#         Authorization: Bearer ${get_extract_value(token)}
+#     case_info:
+#       # 用例1: 批量导出文章为 Markdown 格式
+#       - case_desc: 批量导出Markdown
+#         params:
+#           ids: ${get_extract_value(article_id)}
+#           format: md
+#         validate:
+#           - contains: [ $headers.Content-Type , text/markdown;charset=utf-8 ]
+#           - gt: [ $body.length, 0]

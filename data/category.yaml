@@ -1,0 +1,209 @@
+# ============================================================
+# SL Blog 分类模块 - 后台接口自动化测试用例
+# ============================================================
+# 后端分类接口（大部分需要 ADMIN 认证）：
+#   1. GET  /api/admin/categories                - 分类列表（【公开】，无需认证，支持 keyword/page/pageSize）
+#   2. GET  /api/admin/categories/detail?id=     - 分类详情（需要 ADMIN）
+#   3. POST /api/admin/categories/add            - 新增分类（需要 ADMIN，body: {id, name, description}）
+#   4. PUT  /api/admin/categories/edit           - 编辑分类（需要 ADMIN，body: {id, name, description}）
+#   5. DELETE /api/admin/categories/delete?id=   - 单个删除（需要 ADMIN，query: id）
+#   6. DELETE /api/admin/categories/delete/batch - 批量删除（需要 ADMIN，body: [ids]）
+#
+# 响应格式两套：
+#   A. 业务响应: { code: 200/500, message: "...", data: ... }
+#   B. 框架/全局异常: { status: 401/403/400, error: "...", message: "..." }
+# ============================================================
+
+category_list:
+  # 分类列表（公开，无需认证）
+  - request_info:
+      case_title: 分类列表查询
+      url: /api/admin/categories
+      method: GET
+      headers:
+        Content-Type: application/json
+    case_info:
+      # 用例1: 默认分页获取分类列表
+      - case_desc: 默认分页
+        params:
+          page: 1
+          pageSize: 10
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取分类列表成功 ]
+          - gte: [ $.data.totalCount, 0 ]
+        extract:
+          category_id: $.data.categories[0].id        # 提取第一个分类ID供详情/编辑使用
+          category_name: $.data.categories[0].name    # 提取第一个分类名称供重名校验使用
+
+      # 用例2: 按关键词搜索分类
+      - case_desc: 按关键词搜索
+        params:
+          keyword: 技术
+          page: 1
+          pageSize: 10
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取分类列表成功 ]
+
+      # 用例3: 自定义分页大小
+      - case_desc: 自定义分页大小
+        params:
+          page: 1
+          pageSize: 5
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取分类列表成功 ]
+
+category_detail:
+  # 分类详情（需要 ADMIN 认证）
+  - request_info:
+      case_title: 分类详情查询
+      url: /api/admin/categories/detail
+      method: GET
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 获取存在的分类详情
+      - case_desc: 存在的分类
+        params:
+          id: ${get_extract_value(category_id)}
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 获取分类详情成功 ]
+          - eq: [ $.data.id, '${get_extract_value(category_id)}' ]
+
+      # 用例2: 获取不存在的分类详情
+      - case_desc: 不存在的分类
+        params:
+          id: 99999999
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 分类不存在 ]
+
+category_add:
+  # 新增分类（需要 ADMIN 认证）
+  - request_info:
+      case_title: 新增分类
+      url: /api/admin/categories/add
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 正常新增分类（id 为 null 表示新建）
+      - case_desc: 正常新增
+        json:
+          id: null
+          name: 自动化测试分类{{$timetime}}
+          description: 这是通过接口自动化测试创建的分类
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 新增分类成功 ]
+          - startswith: [ $.data.name, '自动化测试分类' ]
+        extract:
+          new_category_id: $.data.id                       # 提取新建分类ID供后续编辑/删除使用
+
+      # 用例2: 新增重名分类（与已有分类名称相同）
+      - case_desc: 重名校验
+        json:
+          id: null
+          name: ${get_extract_value(category_name)}
+          description: 重复名称的分类
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 分类名称已存在 ]
+
+      # 用例3: 新增空名称分类（后端无名称非空校验，观察行为）
+      - case_desc: 空名称
+        json:
+          id: null
+          name: ""
+          description: 空名称分类
+        validate:
+          - ne: [ $.code, 200 ]
+
+category_edit:
+  # 编辑分类（需要 ADMIN 认证）
+  - request_info:
+      case_title: 编辑分类
+      url: /api/admin/categories/edit
+      method: PUT
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 正常编辑分类
+      - case_desc: 正常编辑
+        json:
+          id: ${get_extract_value(new_category_id)}
+          name: 自动化测试分类已改{{$timetime}}
+          description: 通过接口自动化修改后的分类描述
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.message, 编辑分类成功 ]
+          - startswith: [ $.data.name, '自动化测试分类已改' ]
+
+      # 用例2: 编辑为已存在的分类名称（重名校验应排除自身）
+      - case_desc: 重名校验
+        json:
+          id: ${get_extract_value(new_category_id)}
+          name: ${get_extract_value(category_name)}
+          description: 改为已存在分类名称
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 分类名称已存在 ]
+
+category_delete_batch:
+  # 批量删除分类（需要 ADMIN 认证，body 为 id 数组）
+  # 注意: 前端单删也会调用此接口（把单个 id 包成数组）
+  - request_info:
+      case_title: 批量删除分类
+      url: /api/admin/categories/delete/batch
+      method: DELETE
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 批量删除刚创建的分类（清理测试数据）
+      - case_desc: 清理测试数据
+        json:
+          - ${get_extract_value(new_category_id)}
+        validate:
+          - eq: [ $.code, 200 ]
+          - eq: [ $.data, 批量删除分类成功 ]
+
+      # 用例2: 批量删除含默认分类"未分类"(id=1) → 框架拦截返回 HTTP 400
+      - case_desc: 删除默认分类拦截
+        json:
+          - 18
+        validate:
+          - eq: [ $.status, 400 ]
+          - eq: [ $.message, 默认分类不可删除 ]
+
+category_delete:
+  # 单个删除分类（需要 ADMIN 认证，query 参数 id）
+  - request_info:
+      case_title: 单个删除分类
+      url: /api/admin/categories/delete
+      method: DELETE
+      headers:
+        Content-Type: application/json
+        Authorization: Bearer ${get_extract_value(token)}
+    case_info:
+      # 用例1: 删除不存在的分类
+      - case_desc: 不存在的分类
+        params:
+          id: 99999999
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 分类不存在 ]
+
+      # 用例2: 删除有文章的分类（动态获取有文章的分类ID）
+      - case_desc: 有文章的分类
+        params:
+          id: ${get_extract_value(article_category_id)}
+        validate:
+          - eq: [ $.code, 500 ]
+          - eq: [ $.message, 删除分类失败，分类下有文章 ]

@@ -1,0 +1,42 @@
+user_login:
+  # 接口的基本信息
+  - request_info:
+      case_title: 登录接口
+      url: /member/auth/email-login
+      method: POST
+      headers:
+        Content-Type: application/json
+    case_info:
+      # 接口请求参数，params，json，data
+      - case_desc: 正常登录
+        json:
+          account: 2594359191@qq.com
+          captchaKey: ''
+          captchaVerification: ''
+          code: ''
+          email: ''
+          isDistributor: 'true'
+          newPassword: ''
+          password: Cf@2000...
+          scene: 1
+          username: ''
+        validate:
+          - eq: [ $.data.userId, '901' ]
+        extract:
+          token: $.data.userId  # 提取用户登录的token
+          sdasda: 12131
+
+      - case_desc: 未注册用户
+        json:
+          account: 2594359199@qq.com
+          captchaKey: ''
+          captchaVerification: ''
+          code: ''
+          email: ''
+          isDistributor: "true"
+          newPassword: ''
+          password: Cf@2000...
+          scene: 1
+          username: ''
+        validate:
+          - eq: [$.msg, '未注册']
