@@ -9,17 +9,17 @@ import urllib
 import requests
 from jenkins import Jenkins
 
-jenkins_url = "http://47.109.128.19:8080/"
-server = Jenkins(jenkins_url, username='shuqiyue', password='sqy2004...')
-job_name = "job/api-test"
+jenkins_url = "http://localhost:8080/"
+server = Jenkins(jenkins_url, username='suliulaile', password='cf2000...')
+job_name = "job/SL_Blog"
 job_url = server.get_info(job_name)['url']
 job_last_number = server.get_info(job_name)['lastBuild']['number']
 report_url = job_url + str(job_last_number) + '/allure'
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # 飞书机器人配置
-FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/b913b60e-9d4b-48b8-a605-333d54ac2606"
-FEISHU_SECRET = "0VRriQJL0fhk3Ht62F3gj"  # ⚠️ 必须填写！
+FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/9da63224-64ee-4f59-a3cf-8f8b50f7203f"
+FEISHU_SECRET = "NSDtp0f7zGhhiVXppWrmbh"  # ⚠️ 必须填写！
 
 def generate_sign(secret, timestamp):
     """生成飞书签名"""
