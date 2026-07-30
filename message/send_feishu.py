@@ -19,7 +19,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # 飞书机器人配置
 FEISHU_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/9da63224-64ee-4f59-a3cf-8f8b50f7203f"
-FEISHU_SECRET = "NSDtp0f7zGhhiVXppWrmbh"  # ⚠️ 必须填写！
+FEISHU_SECRET = "5IdNat72HsUGJnYkaQXRie"  # ⚠️ 必须填写！
 
 def generate_sign(secret, timestamp):
     """生成飞书签名"""
