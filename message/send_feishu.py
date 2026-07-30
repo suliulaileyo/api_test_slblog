@@ -51,16 +51,16 @@ def push_message():
     case_num = content['launch_retries_run']  # 总数量
 
     # 3. 生成飞书签名
-    # timestamp = str(int(time.time()))
-    # print("当前时间戳:", timestamp)
-    # print("对应时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp))))
-    # sign = generate_sign(FEISHU_SECRET, timestamp)
+    timestamp = str(int(time.time()))
+    print("当前时间戳:", timestamp)
+    print("对应时间:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp))))
+    sign = generate_sign(FEISHU_SECRET, timestamp)
 
-    # print(f"sign:====={sign}")
+    print(f"sign:====={sign}")
     # ✅ 新增：对 sign 进行 URL 编码
-    # sign_encoded = urllib.parse.quote_plus(sign)  # 关键修复！
+    sign_encoded = urllib.parse.quote_plus(sign)  # 关键修复！
     # 4. 构造带签名的 URL
-    # signed_url = f"{FEISHU_WEBHOOK_URL}?timestamp={timestamp}&sign={sign_encoded}"
+    signed_url = f"{FEISHU_WEBHOOK_URL}?timestamp={timestamp}&sign={sign_encoded}"
     """
     # 5. 构造消息体，通过webhook发送消息
     """
@@ -213,7 +213,7 @@ def push_message():
     }
     # 6. 发送请求
     headers = {"Content-Type": "application/json;charset=UTF-8"}
-    res = requests.post(url=FEISHU_WEBHOOK_URL, json=content, headers=headers)
+    res = requests.post(url=signed_url, json=content, headers=headers)
     print("📬 飞书响应:", res.text)
     if res.status_code == 200:
         result = res.json()
