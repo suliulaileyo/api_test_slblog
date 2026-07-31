@@ -11,7 +11,7 @@ from jenkins import Jenkins
 
 jenkins_url = "http://localhost:8080/"
 server = Jenkins(jenkins_url, username='suliulaile', password='11a59cfce6ec2bc9c1b094fad6d11d6722')
-job_name = "job/SL_Blog"
+job_name = "job/SL_Blog_Api_Auto_Test"
 job_url = server.get_info(job_name)['url']
 job_last_number = server.get_info(job_name)['lastBuild']['number']
 report_url = job_url + str(job_last_number) + '/allure'
